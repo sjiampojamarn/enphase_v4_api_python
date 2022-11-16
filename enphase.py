@@ -4,13 +4,32 @@ import base64
 import sys
 import random
 import time
-from datetime import datetime
-import datetime
 import variables
+import os
+
+from datetime import datetime
+from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.write_api import SYNCHRONOUS
+
+
+class InfluxDBAccessApi:
+    """InfluxDB api to push espi data into. Configs are from env."""
+    def __init__(self):
+      self.client = InfluxDBClient.from_env_properties()
+      self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
+
+    def pushData(self, data, measurement='enphase', bucket=os.environ['INFLUXDB_V2_BUCKET']):
+        """Push data into InfluxDB. Expect data returned from parsing utils."""
+        dataPoint = Point(measurement) \
+            .field("powr", data["powr"]) \
+            .field("enwh", data["enwh"]) \
+            .time(data["end_at"], 's')
+        self.write_api.write(bucket=bucket, record=dataPoint)
+
 
 def count_API():
     '''refresh existing token for a new one'''
-    now = datetime.datetime.now()
+    now = datetime.now()
     timing = now.strftime("%d-%m-%Y,%H:%M")
     counter = {}
 
@@ -29,7 +48,7 @@ def count_API():
         counter[timing] = 1
 
     if counter[timing] > variables.API_limit:
-        sleeptime = 60 - datetime.datetime.now().second
+        sleeptime = 60 - datetime.now().second
         print('Sleeping for', sleeptime,'seconds (Count_API)')
         time.sleep(sleeptime)
         count_API()
@@ -59,14 +78,46 @@ def load_token():
         }
 
     # return headers
+ 
+def get_devices():
+    """
+    """
+    file = f'{variables.data_path}/devices.json'
+    base_url = f'https://{variables.DOMAIN}'
+    url = f"{base_url}/api/v4/systems/{variables.system_id}/devices"
+    fetch_data(url=url,file=file,start_at=0)
+    
+def get_summary():
+    """
+    """
+    file = f'{variables.data_path}/summary.json'
+    base_url = f'https://{variables.DOMAIN}'
+    url = f"{base_url}/api/v4/systems/{variables.system_id}/summary"
+    fetch_data(url=url,file=file,start_at=0)
 
+def get_energy_lifetime(start_at=False):
+    """
+    """
+    file = f'{variables.data_path}/lifetime.json'
+    base_url = f'https://{variables.DOMAIN}'
+    url = f"{base_url}/api/v4/systems/{variables.system_id}/energy_lifetime"
+    fetch_data(url=url,file=file,start_at=start_at)
+    
 def get_system(start_at=False):
     """
     """
     file = f'{variables.data_path}/enphase.json'
     base_url = f'https://{variables.DOMAIN}'
     url = f"{base_url}/api/v4/systems/{variables.system_id}/telemetry/production_micro"
-    fetch_data(url=url,file=file,start_at=start_at)
+    response = fetch_data(url=url,file=file,start_at=start_at)
+
+    if os.environ["INFLUXDB_V2_BUCKET"] is not None and response is not None:
+        influxdb_access_api = InfluxDBAccessApi()
+        record_count = 0
+        for record in response["intervals"]:
+            influxdb_access_api.pushData(record)
+            record_count += 1
+        print("Database: pushed ", record_count, " records")
 
 def fetch_data(url,file,start_at=False):
     count_API()
@@ -101,11 +152,13 @@ def fetch_data(url,file,start_at=False):
         print(f"Saving output to: {file}")
         with open(file, 'w') as f:
             json.dump(response, f, indent=4)
+        return response;
     else:
         print("Sorry, I have no clue what happened, hereby the response")
         print(r.json())
 
     time.sleep(0.1)
+    return None
 
 def fetch_micro(micro=variables.all_micros[0], start_at=False):
     file = f'{variables.data_path}/{micro}'
@@ -192,7 +245,18 @@ def main():
     elif args[0] == 'getall':
         load_token()
         get_system(start_at=start_at)
-        get_micro(variables.all_micros,start_at)
+        get_devices()
+        get_summary()
+        get_energy_lifetime()
+        # get_micro(variables.all_micros,start_at)
+        
+    elif args[0] == 'getdevices':
+        load_token()
+        get_devices()
+    
+    elif args[0] == 'getsummary':
+        load_token()
+        get_summary()
 
     else:
         print("What did you expect?")
