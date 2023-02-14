@@ -1,3 +1,4 @@
+import csv
 import requests
 import json
 import base64
@@ -25,7 +26,6 @@ class InfluxDBAccessApi:
             .field("enwh", data["enwh"]) \
             .time(data["end_at"], 's')
         self.write_api.write(bucket=bucket, record=dataPoint)
-
 
 def count_API():
     '''refresh existing token for a new one'''
@@ -166,6 +166,27 @@ def fetch_micro(micro=variables.all_micros[0], start_at=False):
     url = f"{base_url}/api/v4/systems/{variables.system_id}/devices/micros/{micro}/telemetry"
     fetch_data(url=url,file=file,start_at=start_at)
 
+def pvwatts_import(year=2023):
+    '''pvwatts production reference to DB'''
+    with open(f'{variables.pvwatts_reference}') as csv_file:
+        client = InfluxDBClient.from_env_properties()
+        write_api = client.write_api(write_options=SYNCHRONOUS)
+        csv_reader = csv.reader(csv_file, delimiter=',')
+        line_count = 0;
+        for row in csv_reader:
+            if line_count == 0:
+                print(f'{", ".join(row)}')
+            else:
+                timest = int(datetime(int(year), int(row[0]), int(row[1]), int(row[2])).strftime('%s'))
+                pvwh = float(row[3])
+                dataPoint = Point('pvwatts') \
+                    .field("pvwh", pvwh) \
+                    .time(timest, 's')
+                write_api.write(bucket=os.environ['INFLUXDB_V2_BUCKET'], record=dataPoint)
+                if (line_count % 1200 == 12):
+                    print(f'{timest} {year}-{row[0]}-{row[1]}-{row[2]} {pvwh}')
+            line_count += 1
+
 def refresh_token():
     '''refresh existing token for a new one'''
     with open(variables.credentials, 'r') as f:
@@ -248,7 +269,6 @@ def main():
         get_devices()
         get_summary()
         get_energy_lifetime()
-        # get_micro(variables.all_micros,start_at)
         
     elif args[0] == 'getdevices':
         load_token()
@@ -257,6 +277,9 @@ def main():
     elif args[0] == 'getsummary':
         load_token()
         get_summary()
+
+    elif args[0] == 'pvwatts':
+        pvwatts_import(year=start_at)
 
     else:
         print("What did you expect?")
