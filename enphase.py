@@ -131,11 +131,11 @@ def fetch_data(url,file,start_at=False):
                 # 'start_at': start_at,
                 # 'granularity': 'week'
                 }
-    r = requests.get(url, headers=headers, data=data)
+    r = requests.get(url, headers=headers, params=data)
     if r.status_code == 401:
         print('Trying a token refresh')
         refresh_token()
-        r = requests.get(url, headers=headers, data=data)
+        r = requests.get(url, headers=headers, params=data)
 
     if r.status_code == 401:
         print('Authentication failed after token refresh')
@@ -145,7 +145,7 @@ def fetch_data(url,file,start_at=False):
         sleeptime = 60 - datetime.datetime.now().second
         print('Sleeping for', sleeptime,'seconds (is your enphase limit configured correctly?!)')
         time.sleep(sleeptime)
-        r = requests.get(url, headers=headers, data=data)
+        r = requests.get(url, headers=headers, params=data)
 
     if r.status_code == 200:
         response = r.json()
