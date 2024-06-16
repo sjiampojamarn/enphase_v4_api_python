@@ -2,7 +2,7 @@ ARG BUILD_FROM
 FROM ${BUILD_FROM} as BUILD_IMAGE
 
 RUN apt-get update \
-  && apt-get install -y python3 python3-pip vim \
+  && apt-get install -y python3 python3-pip python3-venv vim \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
