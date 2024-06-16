@@ -10,7 +10,7 @@ WORKDIR /enphase
 COPY entrypoint.sh .
 RUN chmod 755 entrypoint.sh
 COPY requirements.txt .
-RUN python3 -m venv .venv && source .venv/bin/activate
+RUN python3 -m venv .venv && . .venv/bin/activate
 RUN pip3 install -r requirements.txt
 
 COPY enphase.py .
