@@ -14,5 +14,6 @@ python3 --version
 while true;
 do
   python3 enphase.py getall `date --date="7 days ago" +"%s"`
+  echo "Done getall, sleep for 4h"
   sleep 4h
 done
